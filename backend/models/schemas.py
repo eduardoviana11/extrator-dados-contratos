@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import List
 
 class ContractData(BaseModel):
     contractor: str = Field(description="Name of the hiring company or individual")
@@ -13,3 +14,9 @@ class ExtractionResponse(BaseModel):
     filename: str
     extracted_data: ContractData
     status: str
+
+class BatchExtractionResponse(BaseModel):
+    total_processed: int
+    successful: int
+    failed: int
+    results: List[ExtractionResponse]

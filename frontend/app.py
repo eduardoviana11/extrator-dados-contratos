@@ -1,7 +1,12 @@
 import streamlit as st
 import requests
+import pandas as pd
+import os
+from dotenv import load_dotenv
 
-API_URL = "http://localhost:8000/api/v1/extract"
+load_dotenv()
+
+API_URL = os.getenv("API_URL")
 
 st.set_page_config(
     page_title="Auditor de Contratos", 
@@ -12,47 +17,57 @@ st.set_page_config(
 st.title("Auditor de Contratos")
 st.markdown("Faça o upload de um contrato (`.txt` ou `.pdf`) para extrair dados estruturados automaticamente.")
 
-uploaded_file = st.file_uploader("Escolha um arquivo de contrato", type=["txt", "pdf"])
+uploaded_files = st.file_uploader("Escolha os arquivos de contrato", type=["txt", "pdf"], accept_multiple_files=True)
 
-if uploaded_file is not None:
+if uploaded_files:
+    st.info(f"{len(uploaded_files)} arquivo(s) selecionado(s).")
+
     if st.button("Extrair Dados", type="primary"):
-        with st.spinner("Analisando o contrato..."):
+        with st.spinner("Analisando o(s) contrato(s)..."):
             
-            files = {
-                "file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)
-            }
+            files_payload = []
+            for file in uploaded_files:
+                files_payload.append(
+                    ("docs", (file.name, file.getvalue(), file.type))
+                )
             
             try:
-                response = requests.post(API_URL, files=files)
+                response = requests.post(API_URL, files=files_payload)
                 response.raise_for_status()
                 
-                result = response.json()
-                data = result.get("extracted_data", {})
+                batch_result = response.json()
+                results_list = batch_result.get("results", [])
                 
-                st.success("Extração completa!")
-                
-                st.subheader("Informações Extraídas")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                col1.metric("Contratante", data.get("contractor"))
-                col2.metric("Contratada", data.get("contractee"))
-                col3.metric("Valor Total", f"R$ {data.get('total_value')}")
-                
-                st.divider()
-                
-                col4, col5, col6 = st.columns(3)
-                col4.metric("Data de Assinatura", data.get("signature_date"))
-                col5.metric("Possui multa?", "Sim" if data.get("has_penalty_clause") else "Não")
-                
-                score = data.get("confidence_score", 0)
-                score_color = "green" if score >= 8 else "orange" if score >= 5 else "red"
-                col6.markdown(f"### Grau de Confiança: :{score_color}[{score}/10]")
-                
-                st.divider()
-                
-                st.subheader("Resumo do Contrato")
-                st.info(data.get("summary"))
+                st.success(f"Processamento concluído! {batch_result['successful']} sucessos, {batch_result['failed']} falhas.")
+
+                flat_data = []
+                for item in results_list:
+                    data = item.get("extracted_data", {})
+                    flat_data.append({
+                        "Arquivo": item.get("filename"),
+                        "Status": item.get("status"),
+                        "Contratante": data.get("contractor"),
+                        "Contratada": data.get("contractee"),
+                        "Valor Total (R$)": data.get("total_value"),
+                        "Data Assinatura": data.get("signature_date"),
+                        "Tem Multa?": "Sim" if data.get("has_penalty_clause") else "Não",
+                        "Confiança": data.get("confidence_score")
+                    })            
+
+                df = pd.DataFrame(flat_data)
+
+                st.subheader("Painel de Extração de Dados")
+                st.dataframe(df, width='stretch')
+
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Baixar Resultados como CSV",
+                    data=csv,
+                    file_name="extracao_contratos.csv",
+                    mime="text/csv",
+                )
                 
             except requests.exceptions.RequestException as e:
                 st.error(f"Erro ao se comunicar com a API: {e}")
+                if hasattr(e, 'response') and e.response is not None:
+                    st.error(f"Detalhes do 422: {e.response.text}")

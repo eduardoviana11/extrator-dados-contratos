@@ -29,8 +29,8 @@ Uma aplicação básica desenvolvida com **FastAPI**, **LangChain** e **Streamli
 ### 1. Clone o repositório
 
 ```bash
-git clone [https://github.com/SEU_USUARIO/NOME_DO_REPOSITORIO.git](https://github.com/SEU_USUARIO/NOME_DO_REPOSITORIO.git)
-cd NOME_DO_REPOSITORIO
+git clone https://github.com/eduardoviana11/extrator-dados-contratos.git
+cd extrator-dados-contratos
 ```
 
 ### 2. Configurar Variáveis de Ambiente
